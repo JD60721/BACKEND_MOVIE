@@ -20,33 +20,41 @@ const jwtSecret = process.env.JWT_SECRET || process.env.JWT_SECRET_KEY || "dev_s
 
 let Favorite;
 let User;
-if (mongoUri) {
-  mongoose
-    .connect(mongoUri, { dbName })
-    .then(() => {
-      const favoriteSchema = new mongoose.Schema(
-        {
-          tmdbId: { type: String },
-          title: { type: String, required: true },
-          description: { type: String },
-          poster: { type: String },
-          releaseDate: { type: String }
-        },
-        { timestamps: true }
-      );
-      Favorite = mongoose.models.Favorite || mongoose.model("Favorite", favoriteSchema);
+let dbInitPromise;
+async function ensureDb() {
+  if (!mongoUri) return;
+  if (Favorite && User && mongoose.connection && mongoose.connection.readyState === 1) return;
+  if (!dbInitPromise) {
+    dbInitPromise = mongoose
+      .connect(mongoUri, { dbName })
+      .then(() => {
+        const favoriteSchema = new mongoose.Schema(
+          {
+            tmdbId: { type: String },
+            title: { type: String, required: true },
+            description: { type: String },
+            poster: { type: String },
+            releaseDate: { type: String }
+          },
+          { timestamps: true }
+        );
+        Favorite = mongoose.models.Favorite || mongoose.model("Favorite", favoriteSchema);
 
-      const userSchema = new mongoose.Schema(
-        {
-          email: { type: String, unique: true, required: true },
-          passwordHash: { type: String, required: true },
-          name: { type: String }
-        },
-        { timestamps: true }
-      );
-      User = mongoose.models.User || mongoose.model("User", userSchema);
-    })
-    .catch(() => {});
+        const userSchema = new mongoose.Schema(
+          {
+            email: { type: String, unique: true, required: true },
+            passwordHash: { type: String, required: true },
+            name: { type: String }
+          },
+          { timestamps: true }
+        );
+        User = mongoose.models.User || mongoose.model("User", userSchema);
+      })
+      .catch(() => {
+        dbInitPromise = undefined;
+      });
+  }
+  await dbInitPromise;
 }
 
 app.get("/api/health", (req, res) => {
@@ -95,6 +103,7 @@ app.get("/api/films", auth, async (req, res) => {
 
 app.get("/api/favorites", auth, async (req, res) => {
   try {
+    await ensureDb();
     if (!Favorite) return res.status(503).json({ error: "db_unavailable" });
     const page = Math.max(parseInt(req.query.page || "1", 10) || 1, 1);
     const limit = Math.min(Math.max(parseInt(req.query.limit || "10", 10) || 10, 1), 50);
@@ -110,6 +119,7 @@ app.get("/api/favorites", auth, async (req, res) => {
 
 app.post("/api/favorites", auth, async (req, res) => {
   try {
+    await ensureDb();
     if (!Favorite) return res.status(503).json({ error: "db_unavailable" });
     const { title, description = "", poster = "", releaseDate = "", tmdbId = "" } = req.body || {};
     const validTitle = typeof title === "string" && title.trim().length > 0 && title.trim().length <= 200;
@@ -129,6 +139,7 @@ app.post("/api/favorites", auth, async (req, res) => {
 
 app.delete("/api/favorites/:id", auth, async (req, res) => {
   try {
+    await ensureDb();
     if (!Favorite) return res.status(503).json({ error: "db_unavailable" });
     const { id } = req.params;
     const r = await Favorite.findByIdAndDelete(id);
@@ -158,6 +169,7 @@ function auth(req, res, next) {
 
 app.post("/api/auth/register", async (req, res) => {
   try {
+    await ensureDb();
     if (!User) return res.status(503).json({ error: "db_unavailable" });
     const { email, password, name = "" } = req.body || {};
     const e = typeof email === "string" ? email.trim().toLowerCase() : "";
@@ -178,6 +190,7 @@ export default app;
 
 app.post("/api/auth/login", async (req, res) => {
   try {
+    await ensureDb();
     if (!User) return res.status(503).json({ error: "db_unavailable" });
     const { email, password } = req.body || {};
     const e = typeof email === "string" ? email.trim().toLowerCase() : "";
