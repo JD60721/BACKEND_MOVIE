@@ -52,6 +52,10 @@ app.get("/api/health", (req, res) => {
   res.json({ ok: true });
 });
 
+app.get("/", (req, res) => {
+  res.json({ ok: true, service: "backend" });
+});
+
 app.get("/api/films", auth, async (req, res) => {
   try {
     const q = (req.query.q || "").trim();
