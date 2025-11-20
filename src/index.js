@@ -50,7 +50,8 @@ async function ensureDb() {
         );
         User = mongoose.models.User || mongoose.model("User", userSchema);
       })
-      .catch(() => {
+      .catch((e) => {
+        console.error("mongo_connect_error", e && e.message ? e.message : e);
         dbInitPromise = undefined;
       });
   }
@@ -63,6 +64,16 @@ app.get("/api/health", (req, res) => {
 
 app.get("/", (req, res) => {
   res.json({ ok: true, service: "backend" });
+});
+
+app.get("/api/status", async (req, res) => {
+  try {
+    await ensureDb();
+    const state = mongoose.connection ? mongoose.connection.readyState : 0;
+    res.json({ ok: true, dbReadyState: state, hasUserModel: Boolean(User), hasFavoriteModel: Boolean(Favorite), hasMongoUri: Boolean(mongoUri) });
+  } catch (e) {
+    res.status(500).json({ ok: false, error: "status_error" });
+  }
 });
 
 app.get("/api/films", auth, async (req, res) => {
