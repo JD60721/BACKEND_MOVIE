@@ -135,7 +135,9 @@ app.delete("/api/favorites/:id", auth, async (req, res) => {
 });
 
 const port = process.env.PORT || 5000;
-app.listen(port, () => {});
+if (!process.env.VERCEL) {
+  app.listen(port, () => {});
+}
 function auth(req, res, next) {
   try {
     const h = req.headers.authorization || "";
@@ -166,6 +168,8 @@ app.post("/api/auth/register", async (req, res) => {
     res.status(500).json({ error: "auth_error" });
   }
 });
+
+export default app;
 
 app.post("/api/auth/login", async (req, res) => {
   try {
